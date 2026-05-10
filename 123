@@ -28,9 +28,9 @@ local ESP = {
 		Chams = {
 			Enabled = false,
 			Thermal = false,
-			FillRGB = Color3.fromRGB(243, 116, 166),
+			FillRGB = Color3.fromRGB(100, 200, 255),
 			Fill_Transparency = 50,
-			OutlineRGB = Color3.fromRGB(243, 116, 166),
+			OutlineRGB = Color3.fromRGB(010, 220, 255),
 			Outline_Transparency = 50,
 			VisibleCheck = false,
 		},
@@ -49,9 +49,9 @@ local ESP = {
 		},
 		HealthBar = {
 			Enabled = true,
-			Width = 4,
+			Width = 1,
 			Position = "Left",
-			ShowText = true,
+			ShowText = false,
 			TextSize = 10,
 			ColorLow = Color3.fromRGB(255, 0, 0),
 			ColorMid = Color3.fromRGB(255, 255, 0),
