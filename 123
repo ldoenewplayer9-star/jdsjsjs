@@ -30,7 +30,7 @@ local ESP = {
 			Thermal = false,
 			FillRGB = Color3.fromRGB(100, 200, 255),
 			Fill_Transparency = 50,
-			OutlineRGB = Color3.fromRGB(010, 220, 255),
+			OutlineRGB = Color3.fromRGB(100, 220, 255),
 			Outline_Transparency = 50,
 			VisibleCheck = false,
 		},
