@@ -1,0 +1,264 @@
+-- ============================================
+-- GADGET CHAMS LIBRARY
+-- Подсветка для всех гаджетов в Workspace
+-- Оптимизированная версия с текстом (размер шрифта 5)
+-- ============================================
+
+local GadgetChams = {}
+
+local defaultSettings = {
+    FillColor = Color3.fromRGB(100, 200, 255),
+    FillTransparency = 0.3,
+    OutlineColor = Color3.fromRGB(150, 220, 255),
+    OutlineTransparency = 0,
+    TextColor = Color3.fromRGB(255, 255, 255),
+    TextSize = 5,
+}
+
+local gadgets = {
+    ProximityAlarm = "PROXIMITY ALARM",
+    Claymore = "CLAYMORE",
+    StickyCamera = "STICKY CAMERA",
+    RemoteC4 = "REMOTE C4",
+    BreachCharge = "BREACH CHARGE",
+    DeployableShield = "DEPLOYABLE SHIELD",
+    DefaultCamera = "DEFAULT CAMERA",
+    Drone = "DRONE",
+}
+
+local gadgetsWithoutText = {
+    FragGrenade = true,
+}
+
+local enabledStates = {}
+local connections = {}
+
+local function shouldIgnore(instance)
+    local parent = instance.Parent
+    while parent do
+        if parent.Name == "Viewmodels" then
+            return true
+        end
+        parent = parent.Parent
+    end
+    return false
+end
+
+local function createBillboard(model, displayName)
+    local existing = model:FindFirstChild("GadgetLabel")
+    if existing then return existing end
+    
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "GadgetLabel"
+    billboard.Adornee = model
+    billboard.Size = UDim2.new(0, 150, 0, 20)
+    billboard.StudsOffset = Vector3.new(0, 1.5, 0)
+    billboard.MaxDistance = 80
+    billboard.AlwaysOnTop = true
+    
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Name = "TextLabel"
+    textLabel.Parent = billboard
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = displayName
+    textLabel.TextColor3 = defaultSettings.TextColor
+    textLabel.TextSize = defaultSettings.TextSize
+    textLabel.TextStrokeTransparency = 0.5
+    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.TextScaled = false
+    
+    billboard.Parent = model
+    
+    return billboard
+end
+
+local function removeBillboard(model)
+    local billboard = model:FindFirstChild("GadgetLabel")
+    if billboard then
+        billboard:Destroy()
+    end
+end
+
+local function applyChams(model)
+    if not model then return end
+    
+    if shouldIgnore(model) then
+        return nil
+    end
+    
+    if model:FindFirstChild("GadgetChamsHighlight") then return end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "GadgetChamsHighlight"
+    highlight.FillColor = defaultSettings.FillColor
+    highlight.FillTransparency = defaultSettings.FillTransparency
+    highlight.OutlineColor = defaultSettings.OutlineColor
+    highlight.OutlineTransparency = defaultSettings.OutlineTransparency
+    highlight.Parent = model
+end
+
+local function removeChams(model)
+    local highlight = model:FindFirstChild("GadgetChamsHighlight")
+    if highlight then
+        highlight:Destroy()
+    end
+end
+
+local function processModel(model)
+    if not model:IsA("Model") then return end
+    
+    for name, displayName in pairs(gadgets) do
+        if model.Name == name then
+            if enabledStates[name] then
+                applyChams(model)
+                if not gadgetsWithoutText[name] then
+                    createBillboard(model, displayName)
+                end
+            else
+                removeChams(model)
+                removeBillboard(model)
+            end
+            break
+        end
+    end
+    
+    if gadgetsWithoutText.FragGrenade and model.Name == "FragGrenade" then
+        if enabledStates.FragGrenade then
+            applyChams(model)
+        else
+            removeChams(model)
+        end
+    end
+end
+
+local pendingModels = {}
+local processing = false
+
+local function processBatch()
+    if not processing then return end
+    
+    local count = 0
+    for model, _ in pairs(pendingModels) do
+        processModel(model)
+        pendingModels[model] = nil
+        count = count + 1
+        if count >= 10 then break end
+    end
+    
+    if next(pendingModels) then
+        task.wait(0.1)
+        processBatch()
+    else
+        processing = false
+    end
+end
+
+local function queueModel(model)
+    if pendingModels[model] then return end
+    pendingModels[model] = true
+    
+    if not processing then
+        processing = true
+        task.spawn(processBatch)
+    end
+end
+
+local function setupGadgetName(gadgetName)
+    if connections[gadgetName] then return end
+    
+    local connection = workspace.DescendantAdded:Connect(function(descendant)
+        if descendant:IsA("Model") and descendant.Name == gadgetName then
+            if enabledStates[gadgetName] then
+                queueModel(descendant)
+            end
+        end
+    end)
+    
+    connections[gadgetName] = connection
+end
+
+function GadgetChams.Enable(gadgetName)
+    if not gadgets[gadgetName] and gadgetName ~= "FragGrenade" then return end
+    
+    enabledStates[gadgetName] = true
+    setupGadgetName(gadgetName)
+    
+    for _, model in pairs(workspace:GetDescendants()) do
+        if model:IsA("Model") and model.Name == gadgetName then
+            queueModel(model)
+        end
+    end
+end
+
+function GadgetChams.Disable(gadgetName)
+    if not gadgets[gadgetName] and gadgetName ~= "FragGrenade" then return end
+    
+    enabledStates[gadgetName] = false
+    
+    for _, model in pairs(workspace:GetDescendants()) do
+        if model:IsA("Model") and model.Name == gadgetName then
+            removeChams(model)
+            removeBillboard(model)
+        end
+    end
+end
+
+function GadgetChams.EnableAll()
+    for name, _ in pairs(gadgets) do
+        GadgetChams.Enable(name)
+    end
+    GadgetChams.Enable("FragGrenade")
+end
+
+function GadgetChams.DisableAll()
+    for name, _ in pairs(gadgets) do
+        GadgetChams.Disable(name)
+    end
+    GadgetChams.Disable("FragGrenade")
+end
+
+function GadgetChams.SetColor(settings)
+    defaultSettings.FillColor = settings.FillColor or defaultSettings.FillColor
+    defaultSettings.FillTransparency = settings.FillTransparency or defaultSettings.FillTransparency
+    defaultSettings.OutlineColor = settings.OutlineColor or defaultSettings.OutlineColor
+    defaultSettings.OutlineTransparency = settings.OutlineTransparency or defaultSettings.OutlineTransparency
+    defaultSettings.TextColor = settings.TextColor or defaultSettings.TextColor
+    defaultSettings.TextSize = settings.TextSize or defaultSettings.TextSize
+    
+    for _, model in pairs(workspace:GetDescendants()) do
+        local highlight = model:FindFirstChild("GadgetChamsHighlight")
+        if highlight then
+            highlight.FillColor = defaultSettings.FillColor
+            highlight.FillTransparency = defaultSettings.FillTransparency
+            highlight.OutlineColor = defaultSettings.OutlineColor
+            highlight.OutlineTransparency = defaultSettings.OutlineTransparency
+        end
+        
+        local billboard = model:FindFirstChild("GadgetLabel")
+        if billboard then
+            local textLabel = billboard:FindFirstChild("TextLabel")
+            if textLabel then
+                textLabel.TextColor3 = defaultSettings.TextColor
+                textLabel.TextSize = defaultSettings.TextSize
+            end
+        end
+    end
+end
+
+function GadgetChams.Destroy()
+    for _, conn in pairs(connections) do
+        conn:Disconnect()
+    end
+    connections = {}
+    
+    for _, model in pairs(workspace:GetDescendants()) do
+        removeChams(model)
+        removeBillboard(model)
+    end
+    
+    enabledStates = {}
+end
+
+return GadgetChams
